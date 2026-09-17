@@ -1,0 +1,51 @@
+# --- Secrets -------------------------------------------------------------
+# Never commit real API keys. .env.example is the template that IS committed.
+.env
+.env.local
+.env.*.local
+
+# --- Python --------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# --- Virtual environments ------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# --- Tooling -------------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# --- vidvoice outputs ----------------------------------------------------
+# Rendered videos, generated subtitles and intermediate artefacts.
+vidvoice-work/
+*_narrated.mp4
+*_narrated.mov
+*_narrated.srt
+*_narrated.vtt
+*_narrated.txt
+preview.wav
+emotion-previews/
+
+# --- Editors / OS --------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

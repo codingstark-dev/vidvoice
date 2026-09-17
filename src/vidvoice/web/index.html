@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vidvoice — narrate a screen recording</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --panel-2: #1e2230;
+    --border: #2a2f3d;
+    --text: #e6e8ee;
+    --muted: #8b93a7;
+    --accent: #6c8cff;
+    --accent-dim: #2b3a6b;
+    --good: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    padding: 20px 28px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  .badge.warn { color: var(--warn); border-color: #4a3a10; background: #241d08; }
+  .badge.ok { color: var(--good); border-color: #1c3a22; background: #0e2113; }
+  main {
+    display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 22px; padding: 22px 28px; max-width: 1240px; align-items: start;
+  }
+  @media (max-width: 940px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px; margin-bottom: 18px;
+  }
+  .panel h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--muted); margin: 0 0 14px;
+  }
+  #drop {
+    border: 1.5px dashed var(--border); border-radius: var(--radius);
+    padding: 38px 20px; text-align: center; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #drop:hover, #drop.over { border-color: var(--accent); background: #151a2b; }
+  #drop .big { font-size: 15px; margin-bottom: 6px; }
+  #drop .small { color: var(--muted); font-size: 12.5px; }
+  .fileinfo {
+    display: flex; gap: 12px; align-items: center; justify-content: space-between;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 11px 14px; margin-top: 12px; font-size: 13px;
+  }
+  .fileinfo .meta { color: var(--muted); font-size: 12px; }
+  label.field { display: block; margin-bottom: 13px; }
+  label.field > span { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 5px; }
+  select, input[type=text], input[type=number], textarea {
+    width: 100%; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px;
+    font: inherit; font-size: 13px;
+  }
+  textarea { resize: vertical; min-height: 62px; }
+  select:focus, input:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; min-width: 0; }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 7px;
+    padding: 9px 16px; font: inherit; font-weight: 550; cursor: pointer;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.1); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.secondary {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  }
+  button.small { padding: 6px 11px; font-size: 12.5px; }
+  .emotions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .emo {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+    border-radius: 999px; padding: 4px 11px; font-size: 12px; cursor: pointer;
+  }
+  .emo:hover { border-color: var(--accent); color: var(--text); }
+  .emo.on { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+  details.advanced { margin-top: 6px; }
+  details.advanced summary {
+    cursor: pointer; color: var(--muted); font-size: 12.5px; padding: 4px 0;
+  }
+  .check { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 13px; }
+  .check input { accent-color: var(--accent); }
+  #progress { display: none; margin-top: 16px; }
+  .bar {
+    height: 6px; background: var(--panel-2); border-radius: 999px; overflow: hidden;
+  }
+  .bar > div {
+    height: 100%; width: 0%; background: var(--accent); transition: width .3s ease;
+  }
+  #stage { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .result { display: none; margin-top: 16px; }
+  .result a.dl {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 11px 14px; margin-bottom: 8px; color: var(--text); text-decoration: none;
+  }
+  .result a.dl:hover { border-color: var(--accent); }
+  .result a.dl .kind { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .stats { font-size: 12.5px; color: var(--muted); display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin-bottom: 14px; }
+  .stats b { color: var(--text); font-weight: 550; }
+  .alert { border-radius: 8px; padding: 11px 14px; margin-top: 12px; font-size: 13px; display: none; }
+  .alert.err { background: #2a1416; border: 1px solid #5c2126; color: #ffb4ae; }
+  .alert.warn { background: #241d08; border: 1px solid #4a3a10; color: #f0d08a; }
+  .alert .hint { color: var(--muted); margin-top: 5px; font-size: 12.5px; }
+  video { width: 100%; border-radius: 8px; margin-bottom: 12px; background: #000; }
+  .spin {
+    display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted);
+    border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite;
+    vertical-align: -2px; margin-right: 7px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .muted { color: var(--muted); }
+  .nowrap { white-space: nowrap; }
+  audio { width: 100%; margin-top: 8px; height: 34px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>vidvoice</h1>
+  <span class="sub">screen recording &rarr; narrated video</span>
+  <span id="badge-dry" class="badge warn" style="display:none">dry run</span>
+  <span id="badge-keys" class="badge"></span>
+</header>
+
+<main>
+  <!-- ---------------- left column: input + output ---------------- -->
+  <div>
+    <div class="panel">
+      <h2>1 &middot; Video</h2>
+      <div id="drop">
+        <div class="big">Drop a recording here, or click to choose</div>
+        <div class="small">MP4, MOV, MKV, WebM, AVI &middot; exported from cap.so or similar</div>
+      </div>
+      <input type="file" id="file" accept="video/*" hidden>
+      <div id="fileinfo" class="fileinfo" style="display:none">
+        <div>
+          <div id="fname"></div>
+          <div class="meta" id="fmeta"></div>
+        </div>
+        <button class="secondary small" id="clear">change</button>
+      </div>
+      <div id="upload-note" class="alert warn"></div>
+    </div>
+
+    <div class="panel">
+      <h2>2 &middot; Render</h2>
+      <button id="go" disabled style="width:100%">Generate narration</button>
+      <div id="progress">
+        <div style="margin-top:16px" class="bar"><div id="barfill"></div></div>
+        <div id="stage"><span class="spin"></span>Starting…</div>
+      </div>
+      <div id="error" class="alert err"></div>
+      <div id="warnings" class="alert warn"></div>
+    </div>
+
+    <div class="panel result" id="result">
+      <h2>3 &middot; Result</h2>
+      <video id="preview" controls preload="metadata"></video>
+      <div class="stats" id="stats"></div>
+      <div id="downloads"></div>
+    </div>
+  </div>
+
+  <!-- ---------------- right column: settings ---------------- -->
+  <div>
+    <div class="panel">
+      <h2>Voice</h2>
+      <label class="field">
+        <span>Cartesia voice</span>
+        <select id="voice"><option value="">Loading voices…</option></select>
+      </label>
+
+      <label class="field" style="margin-bottom:8px">
+        <span>Emotion</span>
+        <input type="text" id="emotion-filter" placeholder="Filter 58 emotions…">
+      </label>
+      <div class="emotions" id="emotions"></div>
+
+      <div class="row" style="margin-top:14px">
+        <button class="secondary small" id="preview-btn">Preview voice</button>
+        <button class="secondary small" id="stop-btn" disabled>Stop</button>
+      </div>
+      <audio id="preview-audio" controls style="display:none"></audio>
+    </div>
+
+    <div class="panel">
+      <h2>Script</h2>
+      <label class="field">
+        <span>Mode</span>
+        <select id="mode">
+          <option value="narration">Narration — write a voice-over for a silent recording</option>
+          <option value="transcribe">Transcribe — re-voice speech already in the video</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Pace (words per minute)</span>
+        <input type="number" id="wpm" value="150" min="90" max="220" step="5">
+      </label>
+      <label class="field">
+        <span>Length matching</span>
+        <select id="fit">
+          <option value="exact">Match the video length (recommended)</option>
+          <option value="natural">Gentle adjustments only</option>
+          <option value="off">Never change the speaking rate</option>
+        </select>
+      </label>
+      <details class="advanced">
+        <summary>Advanced</summary>
+        <label class="field" style="margin-top:10px">
+          <span>Context for the script (optional)</span>
+          <textarea id="context" placeholder="e.g. This is a tutorial for new users of our billing dashboard."></textarea>
+        </label>
+        <label class="field">
+          <span>Audience (optional)</span>
+          <input type="text" id="audience" placeholder="e.g. non-technical stakeholders">
+        </label>
+        <label class="field">
+          <span>Max words per segment</span>
+          <input type="number" id="maxwords" value="26" min="8" max="45">
+        </label>
+        <label class="field">
+          <span>If narration runs long</span>
+          <select id="tail">
+            <option value="pad">Freeze the last frame (recommended)</option>
+            <option value="trim">Cut the narration to the video</option>
+            <option value="error">Fail and tell me</option>
+          </select>
+        </label>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>Output</h2>
+      <div class="check"><input type="checkbox" id="subtitles" checked><label for="subtitles">Write subtitles (.srt, .vtt, .txt)</label></div>
+      <div class="check"><input type="checkbox" id="normalize" checked><label for="normalize">Normalise loudness</label></div>
+      <div class="check"><input type="checkbox" id="dryrun"><label for="dryrun">Dry run (no API calls)</label></div>
+      <div class="check"><input type="checkbox" id="srt-timestamps"><label for="srt-timestamps">Report timestamps on completion</label></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let uploaded = null;     // { path, name, media }
+let currentJob = null;
+let pollTimer = null;
+let cfg = null;
+
+// ---------------------------------------------------------------- bootstrap
+
+async function boot() {
+  cfg = await (await fetch('/api/config')).json();
+
+  $('wpm').value = cfg.default_wpm;
+  if (cfg.dry_run) {
+    $('badge-dry').style.display = '';
+    $('dryrun').checked = true;
+  }
+  const keys = [];
+  if (!cfg.has_gemini_key) keys.push('no Gemini key');
+  if (!cfg.has_cartesia_key) keys.push('no Cartesia key');
+  const badge = $('badge-keys');
+  if (keys.length) {
+    badge.textContent = keys.join(' · ');
+    badge.className = 'badge warn';
+    $('upload-note').style.display = 'block';
+    $('upload-note').innerHTML =
+      'Missing credentials: <b>' + keys.join(', ') + '</b>. ' +
+      'Add them to your <code>.env</code> and restart, or tick <b>Dry run</b> to test the pipeline without API calls.';
+  } else {
+    badge.textContent = 'keys loaded';
+    badge.className = 'badge ok';
+  }
+
+  buildEmotions(cfg.primary_emotions, cfg.emotions);
+  selectEmotion(cfg.default_emotion || 'neutral');
+  loadVoices();
+}
+
+function buildEmotions(primary, all) {
+  const box = $('emotions');
+  box.innerHTML = '';
+  const ordered = [...primary, ...all.filter(e => !primary.includes(e))];
+  ordered.forEach((name, i) => {
+    const b = document.createElement('button');
+    b.className = 'emo';
+    b.textContent = name;
+    b.dataset.emotion = name;
+    if (i === primary.length) {
+      // visual break between the primary palette and the extended one
+      b.style.marginLeft = '10px';
+    }
+    b.onclick = () => selectEmotion(name);
+    box.appendChild(b);
+  });
+}
+
+function selectEmotion(name) {
+  document.querySelectorAll('.emo').forEach(el => {
+    el.classList.toggle('on', el.dataset.emotion === name);
+  });
+  $('emotions').dataset.selected = name;
+}
+
+$('emotion-filter').addEventListener('input', (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.emo').forEach(el => {
+    el.style.display = !q || el.dataset.emotion.includes(q) ? '' : 'none';
+  });
+});
+
+async function loadVoices(refresh = false) {
+  const sel = $('voice');
+  try {
+    const res = await fetch('/api/voices' + (refresh ? '?refresh=true' : ''));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load voices');
+    if (!data.voices.length) {
+      sel.innerHTML = '<option value="">No voices available</option>';
+      return;
+    }
+    sel.innerHTML = '';
+    data.voices.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v.id;
+      o.textContent = v.name ? `${v.name} — ${v.gender || 'voice'}${v.language ? ' · ' + v.language : ''}` : v.id;
+      sel.appendChild(o);
+    });
+    if (cfg.default_voice) sel.value = cfg.default_voice;
+  } catch (err) {
+    sel.innerHTML = '<option value="">(voice list unavailable — id will be used)</option>';
+  }
+}
+
+// ---------------------------------------------------------------- upload
+
+const drop = $('drop');
+drop.onclick = () => $('file').click();
+['dragenter', 'dragover'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0];
+  if (f) uploadFile(f);
+});
+$('file').onchange = e => { if (e.target.files[0]) uploadFile(e.target.files[0]); };
+$('clear').onclick = () => {
+  uploaded = null;
+  $('fileinfo').style.display = 'none';
+  drop.style.display = '';
+  $('go').disabled = true;
+  $('result').style.display = 'none';
+};
+
+async function uploadFile(file) {
+  const note = $('upload-note');
+  note.className = 'alert warn';
+  note.style.display = 'block';
+  note.textContent = `Uploading ${file.name}…`;
+
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || 'Upload failed');
+
+    uploaded = data;
+    note.style.display = 'none';
+    drop.style.display = 'none';
+    $('fileinfo').style.display = 'flex';
+    $('fname').textContent = data.name;
+    const m = data.media;
+    $('fmeta').textContent = `${m.resolution} · ${m.duration} · ${m.fps} fps · ${m.size_mb} MB · ${m.video_codec}${m.audio_codec !== '(none)' ? ' + ' + m.audio_codec : ''}`;
+    $('go').disabled = false;
+    $('result').style.display = 'none';
+  } catch (err) {
+    note.className = 'alert err';
+    note.textContent = err.message;
+  }
+}
+
+// ---------------------------------------------------------------- preview
+
+let previewAbort = null;
+$('preview-btn').onclick = async () => {
+  const btn = $('preview-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  $('stop-btn').disabled = false;
+
+  try {
+    const res = await fetch('/api/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        voice_id: $('voice').value,
+        emotion: selectedEmotion(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Preview failed');
+    const audio = $('preview-audio');
+    audio.src = data.url + '?t=' + Date.now();
+    audio.style.display = '';
+    audio.play().catch(() => {});
+  } catch (err) {
+    showError(err.message, null);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Preview voice';
+    $('stop-btn').disabled = true;
+  }
+};
+
+$('stop-btn').onclick = () => {
+  const audio = $('preview-audio');
+  audio.pause();
+  audio.currentTime = 0;
+};
+
+function selectedEmotion() {
+  return $('emotions').dataset.selected || '';
+}
+
+// ---------------------------------------------------------------- render
+
+$('go').onclick = async () => {
+  if (!uploaded) return;
+  showError(null, null);
+  $('warnings').style.display = 'none';
+  $('result').style.display = 'none';
+  $('go').disabled = true;
+  $('progress').style.display = 'block';
+  setProgress(0.02, 'Submitting…');
+
+  const payload = {
+    path: uploaded.path,
+    mode: $('mode').value,
+    voice_id: $('voice').value,
+    emotion: selectedEmotion(),
+    target_wpm: parseFloat($('wpm').value) || 150,
+    fit_mode: $('fit').value,
+    max_words: parseInt($('maxwords').value) || 26,
+    context: $('context').value,
+    audience: $('audience').value,
+    tail: $('tail').value,
+    subtitles: $('subtitles').checked,
+    normalize: $('normalize').checked,
+    dry_run: $('dryrun').checked,
+  };
+
+  try {
+    const res = await fetch('/api/render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.detail || 'Could not start the render');
+    currentJob = data.job_id;
+    pollTimer = setInterval(poll, 700);
+    poll();
+  } catch (err) {
+    showError(err.message, null);
+    $('go').disabled = false;
+    $('progress').style.display = 'none';
+  }
+};
+
+function setProgress(fraction, stage) {
+  $('barfill').style.width = Math.round((fraction || 0) * 100) + '%';
+  $('stage').innerHTML = '<span class="spin"></span>' + stage;
+}
+
+async function poll() {
+  if (!currentJob) return;
+  try {
+    const res = await fetch('/api/job/' + currentJob);
+    const job = await res.json();
+    if (!res.ok) throw new Error(job.detail || 'Lost track of the job');
+
+    setProgress(job.progress, job.stage);
+
+    if (job.status === 'done') {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      $('progress').style.display = 'none';
+      $('go').disabled = false;
+      showResult(job);
+    } else if (job.status === 'failed') {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      $('progress').style.display = 'none';
+      $('go').disabled = false;
+      showError(job.error, job.hint);
+    }
+  } catch (err) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+    $('go').disabled = false;
+    showError(err.message, null);
+  }
+}
+
+function showError(message, hint) {
+  const box = $('error');
+  if (!message) { box.style.display = 'none'; return; }
+  box.className = 'alert err';
+  box.innerHTML = '<b>' + escapeHtml(message) + '</b>' +
+    (hint ? '<div class="hint">' + escapeHtml(hint) + '</div>' : '');
+  box.style.display = 'block';
+}
+
+function showResult(job) {
+  const r = job.result || {};
+  const stats = r.stats || {};
+
+  const video = $('preview');
+  video.src = r.output_url + '?t=' + Date.now();
+
+  $('stats').innerHTML = [
+    ['Video length', fmtMs(stats.output_ms || 0)],
+    ['Spoken segments', stats.speakable_segments ?? '—'],
+    ['Words', stats.total_words ?? '—'],
+    ['Delivery', (stats.words_per_minute ?? '—') + ' wpm'],
+    ['Speaking rate', (stats.global_speed ?? 1).toFixed(2) + '×'],
+    ['Sync offset', fmtSigned(stats.sync_delta_ms || 0)],
+  ].map(([k, v]) => `<span class="muted">${k}</span><b>${v}</b>`).join('');
+
+  const links = [];
+  links.push(dl(r.output_url, 'Narrated video', r.output, 'video/mp4'));
+  Object.entries(r.subtitles || {}).forEach(([fmt, info]) => {
+    links.push(dl(info.url, fmt.toUpperCase(), info.name));
+  });
+  links.push(dl('/api/download/' + encodeURIComponent(r.script || ''), 'Script (JSON)', r.script));
+  $('downloads').innerHTML = links.join('');
+
+  $('result').style.display = 'block';
+
+  const warns = job.warnings || [];
+  if (warns.length) {
+    $('warnings').innerHTML = '<b>Notes</b><ul style="margin:6px 0 0 18px;padding:0">' +
+      warns.map(w => '<li>' + escapeHtml(w) + '</li>').join('') + '</ul>';
+    $('warnings').style.display = 'block';
+  }
+  $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function dl(url, kind, name, type) {
+  if (!url || url.endsWith('undefined')) return '';
+  return `<a class="dl" href="${url}" download><span>${escapeHtml(name || kind)}</span><span class="kind">${kind}</span></a>`;
+}
+
+function fmtMs(ms) {
+  if (!ms) return '—';
+  const total = Math.round(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+function fmtSigned(ms) {
+  const s = (ms / 1000).toFixed(2);
+  return (ms > 0 ? '+' : '') + s + 's';
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+boot();
+</script>
+</body>
+</html>

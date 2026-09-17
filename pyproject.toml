@@ -1,0 +1,86 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vidvoice"
+version = "0.1.0"
+description = "Turn a silent screen recording into a narrated video: Gemini writes/transcribes a timed script, Cartesia speaks it, ffmpeg merges it back in sync."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "codingstark-dev" }]
+keywords = [
+    "screen-recording",
+    "text-to-speech",
+    "tts",
+    "voiceover",
+    "narration",
+    "gemini",
+    "cartesia",
+    "ffmpeg",
+    "automation",
+    "video",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Video :: Non-Linear Editor",
+]
+
+# Deliberately tiny. httpx is the only hard runtime dep for the API clients;
+# the web GUI deps are optional so the CLI works in a bare environment.
+dependencies = [
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+]
+dev = [
+    "pytest>=8.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+]
+
+[project.scripts]
+vidvoice = "vidvoice.cli:main"
+
+# NOTE: every [project.*] sub-table must come after the plain keys above it.
+# TOML has no "return to parent table", so a sub-table placed in the middle
+# would silently capture the keys that follow it.
+[project.urls]
+Homepage = "https://github.com/codingstark-dev/vidvoice"
+Repository = "https://github.com/codingstark-dev/vidvoice"
+Issues = "https://github.com/codingstark-dev/vidvoice/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vidvoice"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Treat deprecations as errors so our own code cannot rot against a future
+# Python -- but only ours. Third-party libraries (anyio/starlette via the
+# FastAPI TestClient) emit their own deprecations that are not ours to fix, and
+# failing on those would make the suite hostage to unrelated releases.
+filterwarnings = [
+    "error::DeprecationWarning",
+    "default::DeprecationWarning:anyio.*",
+    "default::DeprecationWarning:starlette.*",
+    "default::DeprecationWarning:httpx.*",
+    "default::DeprecationWarning:fastapi.*",
+]
