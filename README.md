@@ -1,5 +1,9 @@
 # vidvoice
 
+[![tests](https://github.com/codingstark-dev/vidvoice/actions/workflows/tests.yml/badge.svg)](https://github.com/codingstark-dev/vidvoice/actions/workflows/tests.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+
 Turn a **silent screen recording** into a **narrated video**.
 
 You record your screen with [cap.so](https://cap.so) (which already handles cursor
